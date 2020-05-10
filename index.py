@@ -20,7 +20,6 @@ for f in glob.iglob('./images/*'):
     titles.append(f)
     all_images_to_compare.append(image)
 
-
 for image_to_compare, title in zip(all_images_to_compare, titles):
     # 1) check if 2 images are equals
     if original.shape == image_to_compare.shape:
@@ -40,6 +39,7 @@ for image_to_compare, title in zip(all_images_to_compare, titles):
     for m, n in matches:
         if m.distance < 0.6 * n.distance:
             good_points.append(m)
+
     number_keypoints = 0
     if len(kp_1) <= len(kp_2):
         number_keypoints = len(kp_1)
@@ -50,4 +50,12 @@ for image_to_compare, title in zip(all_images_to_compare, titles):
     percentage_similarity = len(good_points) / number_keypoints * 100
     print("Similarity " + str(int(percentage_similarity)) + "%\n")
 
-    if percentage_similarity > 90
+    if percentage_similarity > 90:
+        gp = sorted(good_points, key=lambda x: x.distance)
+        matching_result = cv2.drawMatches(original, kp_1, image_to_compare, kp_2, gp[:50], None,
+                                          flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        matching_result = cv2.resize(matching_result, (960, 640))
+        cv2.imshow("Matching: " + title, matching_result)
+
+cv2.waitKey(0)
+cv2.destroyWindow()
