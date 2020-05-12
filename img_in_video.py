@@ -1,3 +1,7 @@
+import os
+import time
+import change_fps
+
 import cv2
 
 
@@ -18,6 +22,56 @@ def compareTwoImage():
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     percentage, kp1, kp2, good_points = checkSimilarity(sift, flann, 0.6, original, compare_to)
     draw(original, compare_to, kp1, kp2, good_points, percentage)
+
+
+def findImageInVideo():
+    original = cv2.imread("./theme2.png")
+    original = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
+    cam = cv2.VideoCapture("./theme_7.mp4")
+    #
+    sift = cv2.xfeatures2d.SIFT_create()
+    index_params = dict(algorithm=0, trees=5)
+    search_params = dict()
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+    try:
+        if not os.path.exists('data'):
+            os.makedirs("data")
+
+    except OSError:
+        print("Error: Creating directory of data")
+
+    currentframe = 0
+    while True:
+        ret, frame = cam.read()
+        if ret:
+            print(ret)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # percent by which the image is resized
+            scale_percent = 50
+
+            # calculate the 50 percent of original dimensions
+            width = int(frame.shape[1] * scale_percent / 100)
+            height = int(frame.shape[0] * scale_percent / 100)
+            # dsize
+            dsize = (width, height)
+
+            # resize image
+            frame = cv2.resize(frame, dsize)
+
+            name = './data/frame' + str(currentframe) + '.jpg'
+            print('Creating....' + name)
+
+            percentage, kp1, kp2, good_points = checkSimilarity(sift, flann, 0.6, original, frame)
+            print("Match: " + str(percentage) + " %")
+            if percentage > 20.:
+                matching_result = cv2.drawMatches(original, kp1, frame, kp2, good_points[:200], None,
+                                                  flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+                cv2.imwrite(name, matching_result)
+
+            currentframe += 1
+        else:
+            break
+    cam.release()
 
 
 def checkEquals(img, compare_to):
@@ -41,14 +95,14 @@ def checkSimilarity(sift, flann, threshold, img, compare_to):
             good_points.append(m)
 
     if len(kp1) > len(kp2):
-        n_keypoints = len(kp1)
-    else:
         n_keypoints = len(kp2)
+    else:
+        n_keypoints = len(kp1)
 
     percentage_similarity = len(good_points) / n_keypoints * 100
     return percentage_similarity, kp1, kp2, good_points
 
 
-compareTwoImage()
+findImageInVideo()
 cv2.waitKey(0)
 cv2.destroyAllWindows()
