@@ -5,17 +5,16 @@ import change_fps
 import normalize_img
 
 
-def saveResult(img1, img2, kp1, kp2, good_points, name):
-    name = './data/frame' + name + '.jpg'
+def save_result(img1, img2, kp1, kp2, good_points, name):
+    name = './data/frame_' + name + '.jpg'
     matching_result = cv2.drawMatches(img1, kp1, img2, kp2, good_points[:200], None,
                                       flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
     cv2.imwrite(name, matching_result)
 
 
-def findObjectInVideo(object_img, video):
+def find_object_in_video(object_img, video):
     object_img = normalize_img.normalize_object_image(object_img)
-
-    decrease_fps = change_fps.enoughFps(video)
+    fps = change_fps.get_fps(video)
     # init algorithm
     sift = cv2.xfeatures2d.SIFT_create()
     index_params = dict(algorithm=0, tree=5)
@@ -25,26 +24,31 @@ def findObjectInVideo(object_img, video):
     kp1, desc_1 = sift.detectAndCompute(object_img, None)
     #
     current_frame = 0
+    skip_frame = 0
     # run
     while True:
         ret, frame = video.read()
         current_frame += 1
         if ret:
-            if decrease_fps:
-                cv2.waitKey(200)
-
+            if skip_frame != 0:
+                skip_frame -= 1
+                continue
+            #
             frame = normalize_img.normalize_video_image(frame)
             kp2, desc_2 = sift.detectAndCompute(frame, None)
-            percentage, good_points = checkSimilarity(flann, 0.6, kp1, desc_1, kp2, desc_2)
-            print("Match: " + str(percentage) + " %")
+            percentage, good_points = check_similarity(flann, 0.7, kp1, desc_1, kp2, desc_2)
+            print("Match: " + str(percentage) + "%")
             if percentage > 20.:
-                saveResult(object_img, frame, kp1, kp2, good_points,
-                           str(current_frame) + "_" + str(percentage))
+                t = current_frame / fps
+                save_result(object_img, frame, kp1, kp2, good_points,
+                            str(round(t, 2)) + "s_" + str(round(percentage, 2)) + "%")
+            else:
+                skip_frame = int(fps / 2)
         else:
             break
 
 
-def checkSimilarity(flann, threshold, kp1, desc_1, kp2, desc_2):
+def check_similarity(flann, threshold, kp1, desc_1, kp2, desc_2):
     good_points = []
     matches = flann.knnMatch(desc_1, desc_2, k=2)
     for m, n in matches:
@@ -59,16 +63,21 @@ def checkSimilarity(flann, threshold, kp1, desc_1, kp2, desc_2):
     return percentage_similarity, good_points
 
 
-try:
-    if not os.path.exists('data'):
-        os.makedirs("data")
+def start():
+    try:
+        if not os.path.exists('data'):
+            os.makedirs("data")
 
-except OSError:
-    print("Error: Creating directory of data")
-v = cv2.VideoCapture('./theme_7.mp4')
-obj_img = cv2.imread('./theme2.png')
+    except OSError:
+        print("Error: Creating directory of data")
+    v = cv2.VideoCapture('./theme_7.mp4')
+    v.set(cv2.CAP_PROP_FPS, 10)
+    obj_img = cv2.imread('./theme2.png')
 
-findObjectInVideo(obj_img, v)
+    find_object_in_video(obj_img, v)
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+start()
