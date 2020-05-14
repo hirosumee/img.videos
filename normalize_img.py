@@ -2,7 +2,7 @@ import cv2
 
 
 def normalize_video_image(img):
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # percent by which the image is resized
     # scale_percent = 50
     # calculate the 50 percent of original dimensions
@@ -11,7 +11,7 @@ def normalize_video_image(img):
     # dsize
     # dsize = (width, height)
     # resize image
-    return img
+    # return img
     # return cv2.resize(img, dsize)
 
 
