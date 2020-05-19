@@ -7,7 +7,7 @@ import normalize_img
 
 
 def start():
-    obj_img = cv2.imread('input/theme2.png')
+    obj_img = cv2.imread('input/nu2.png')
     obj_img = normalize_img.normalize_object_image(obj_img)
     #
     sift = cv2.xfeatures2d.SIFT_create()
@@ -39,9 +39,9 @@ def detect(flann, or_kps, or_desc, data):
     else:
         n_keypoints = len(or_kps)
     percentage_similarity = len(good_points) / n_keypoints * 100
-    if percentage_similarity > 20.:
+    if percentage_similarity > 1.0:
         print("tìm thấy ảnh đầu vào trong: " + name)
-        print("xuất hiện : " + str(round(frame / fps, 2)) + "s")
+        print("xuất hiện : " + str(round(frame / fps, 2)) + "s" + " " + str(percentage_similarity) + " %")
 
 
 def to_kps(raw):
