@@ -74,9 +74,13 @@ class MyFrame(wx.Frame):
         for key in self.result:
             name = key
             time_range = sorted(self.result.get(key))
-            print(name, time_range)
-            self.log_box.AppendText(name + " " + str(min(time_range)) + " --> " + str(max(time_range)) + " \n")
-            cut_video("input/" + name, min(time_range), max(time_range))
+            mi = min(time_range)
+            ma = max(time_range)
+            self.log_box.AppendText(name + " " + str(mi) + " --> " + str(ma) + " \n")
+            if ma > mi:
+                cut_video("input/" + name, mi, ma)
+            else:
+                cut_video("input/" + name, mi, ma + 1)
 
     def handle_find(self, img, label):
         self.result = {}
@@ -90,7 +94,7 @@ class MyFrame(wx.Frame):
         print(text)
         text_ctrl.SetLabel(text)
 
-        file = shutil.copy(path, "./input")
+        file = shutil.copy(path, "./input/")
         video = cv2.VideoCapture(file)
         videoName = easf.get_file_name_from_path(file)
         # extract features
@@ -101,6 +105,7 @@ class MyFrame(wx.Frame):
 
 
 def cut_video(path, f, t):
+    print(path)
     clip = (VideoFileClip(path).subclip(f, t))
     name = str(f) + str(t)
     clip.write_videofile("output/output-%s.mp4" % name)
@@ -115,8 +120,18 @@ def init_output_folder():
         print("Error: Creating directory of " + path)
 
 
+def init_input_folder():
+    path = 'input/'
+    try:
+        if not os.path.exists(path):
+            os.makedirs(path)
+    except OSError:
+        print("Error: Creating directory of " + path)
+
+
 if __name__ == '__main__':
     init_output_folder()
+    init_input_folder()
     app = wx.App()
     frame = MyFrame()
     app.MainLoop()
