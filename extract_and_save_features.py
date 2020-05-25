@@ -49,7 +49,7 @@ def extract_and_save(name, video):
 
 def save_feature(name, fps, current_frame, kps, descs):
     f_name = name + '_' + str(current_frame) + '.data'
-    f_obj = open('output/' + name + '/' + f_name, 'wb+')
+    f_obj = open('db/' + name + '/' + f_name, 'wb+')
     data = {
         "name": name,
         "fps": fps,
@@ -91,7 +91,7 @@ def init_output_folder():
 
 
 def init_output_video_features_folder(name):
-    path = 'output/' + name
+    path = 'db/' + name
     try:
         if not os.path.exists(path):
             os.makedirs(path)
@@ -99,4 +99,4 @@ def init_output_video_features_folder(name):
         print("Error: Creating directory of " + path)
 
 
-start()
+# start()

@@ -1,219 +1,122 @@
-import glob
-import json
-import os
-import pickle
+import shutil
+import threading
 
 import cv2
-import numpy
-
-import change_fps
-from json import JSONEncoder
-
-import normalize_img
+import wx
+import extract_and_save_features as easf
+import find_image_in_video as fiiv
+from moviepy.editor import *
 
 
-def save_result(img1, img2, kp1, kp2, good_points, name):
-    name = './output/frame_' + name + '.jpg'
-    matching_result = cv2.drawMatches(img1, kp1, img2, kp2, good_points[:200], None,
-                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv2.imwrite(name, matching_result)
+class MyFrame(wx.Frame):
+    def __init__(self):
+        super().__init__(parent=None, title='Nhận diện đối tượng trong video', pos=(500, 500), size=(800, 600))
+        panel = wx.Panel(self)
+        my_sizer = wx.BoxSizer(wx.VERTICAL)
+        #
+        self.find_process_label = wx.StaticText(panel, style=wx.ALIGN_CENTER_HORIZONTAL, size=(400, 40))
+        self.find_process_label.SetLabel("Bạn có thể bắt đầu import video vào db")
+        my_sizer.Add(self.find_process_label, 0, wx.ALL | wx.CENTER, 5)
+        #
+        my_btn = wx.Button(panel, label='Import video to db')
+        my_btn.Bind(wx.EVT_BUTTON, self.on_choose_video)
+        my_sizer.Add(my_btn, 0, wx.ALL | wx.CENTER, 5)
+        #
+        self.find_process_label = wx.StaticText(panel, style=wx.ALIGN_CENTER_HORIZONTAL, size=(400, 40))
+        self.find_process_label.SetLabel("Bạn có thể chọn 1 ảnh để bắt đầu tìm kiếm trong db")
+        my_sizer.Add(self.find_process_label, 0, wx.CENTER, 5)
+        #
+        my_btn = wx.Button(panel, label='Chọn ảnh để tìm kiếm')
+        my_btn.Bind(wx.EVT_BUTTON, self.on_choose_img)
+        my_sizer.Add(my_btn, 0, wx.ALL | wx.CENTER, 5)
+        #
+        self.log_box = wx.TextCtrl(panel, size=(400, 200), style=wx.TE_MULTILINE)
+        my_sizer.Add(self.log_box, 0, wx.ALL | wx.CENTER, 5)
+        #
+        #
+        panel.SetSizer(my_sizer)
+        self.Show()
+
+        #
+        self.result = {}
+
+    def on_choose_video(self, event):
+        openFileDialog = wx.FileDialog(frame, "Open", "", "", "Video files (*.mp4)|*.mp4",
+                                       wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        openFileDialog.ShowModal()
+        path = openFileDialog.GetPath()
+        openFileDialog.Destroy()
+
+        if path:
+            x = threading.Thread(target=self.handle_import, args=(path, self.find_process_label))
+            x.start()
+
+    def on_choose_img(self, event):
+        openFileDialog = wx.FileDialog(frame, "Open", "", "", "Images files (*.png)|*.png|*.jpg",
+                                       wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        openFileDialog.ShowModal()
+        path = openFileDialog.GetPath()
+        openFileDialog.Destroy()
+
+        if path:
+            img = cv2.imread(path)
+            x = threading.Thread(target=self.handle_find, args=(img, self.find_process_label))
+            x.start()
+
+    def on_found(self, name, second, percentage):
+        # self.log_box.AppendText(name + " " + str(second) + "s " + str(percentage) + " %\n")
+        # self.log_box.Refresh()
+        p = self.result.get(name, [])
+        p.append(second)
+        self.result[name] = p
+
+    def on_finished(self):
+        for key in self.result:
+            name = key
+            time_range = sorted(self.result.get(key))
+            print(name, time_range)
+            self.log_box.AppendText(name + " " + str(min(time_range)) + " --> " + str(max(time_range)) + " \n")
+            cut_video("input/" + name, min(time_range), max(time_range))
+
+    def handle_find(self, img, label):
+        self.result = {}
+        label.SetLabel("Finding ............")
+        fiiv.find(img, self.on_found, self.on_finished)
+        label.SetLabel("Find process has ended.")
+
+    def handle_import(self, path, text_ctrl):
+        # copy to input folder
+        text = "Processing " + path + " ......"
+        print(text)
+        text_ctrl.SetLabel(text)
+
+        file = shutil.copy(path, "./input")
+        video = cv2.VideoCapture(file)
+        videoName = easf.get_file_name_from_path(file)
+        # extract features
+        easf.extract_and_save(videoName, video)
+        text = path + " is processed"
+        print(text)
+        text_ctrl.SetLabel(text)
 
 
-def find_object_in_video(object_img, video):
-    # object_img = normalize_img.normalize_object_image(object_img)
-    fps = change_fps.get_fps(video)
-    # init algorithm
-    sift = cv2.xfeatures2d.SIFT_create()
-    index_params = dict(algorithm=0, tree=5)
-    search_params = dict()
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    #
-    kp1, desc_1 = sift.detectAndCompute(object_img, None)
-    #
-    current_frame = 0
-    skip_frame = 0
-    # run
-    while True:
-        ret, frame = video.read()
-        current_frame += 1
-        if ret:
-            if skip_frame != 0:
-                skip_frame -= 1
-                continue
-            #
-            # frame = normalize_img.normalize_video_image(frame)
-            kp2, desc_2 = sift.detectAndCompute(frame, None)
-            percentage, good_points = check_similarity(flann, 0.7, kp1, desc_1, kp2, desc_2)
-            print("Match: " + str(percentage) + "%")
-            if percentage > 20.:
-                t = current_frame / fps
-                save_result(object_img, frame, kp1, kp2, good_points,
-                            str(round(t, 2)) + "s_" + str(round(percentage, 2)) + "%")
-            else:
-                skip_frame = int(fps / 2)
-        else:
-            break
+def cut_video(path, f, t):
+    clip = (VideoFileClip(path).subclip(f, t))
+    name = str(f) + str(t)
+    clip.write_videofile("output/output-%s.mp4" % name)
 
 
-def check_similarity(flann, threshold, kp1, desc_1, kp2, desc_2):
-    good_points = []
-    matches = flann.knnMatch(desc_1, desc_2, k=2)
-    for m, n in matches:
-        if m.distance < threshold * n.distance:
-            good_points.append(m)
-    if len(kp1) > len(kp2):
-        n_keypoints = len(kp2)
-    else:
-        n_keypoints = len(kp1)
-
-    percentage_similarity = len(good_points) / n_keypoints * 100
-    return percentage_similarity, good_points
-
-
-def start():
-    obj_img = cv2.imread('input/theme2.png')
-    obj_img = normalize_img.normalize_object_image(obj_img)
-    detect(obj_img)
-    # initData()
-
-
-def initData():
+def init_output_folder():
+    path = 'output/'
     try:
-        if not os.path.exists('input'):
-            os.makedirs('input')
+        if not os.path.exists(path):
+            os.makedirs(path)
     except OSError:
-        print("Error: Creating directory of input")
-    #
-    for f in get_all_video_file_name():
-        f_name = f.split('/')[-1]
-        v = cv2.VideoCapture(f)
-        extract_and_save_f(f_name, v)
+        print("Error: Creating directory of " + path)
 
 
-def detect(img):
-    try:
-        if not os.path.exists('input'):
-            os.makedirs('input')
-    except OSError:
-        print("Error: Creating directory of input")
-    try:
-        if not os.path.exists('input'):
-            os.makedirs('input')
-    except OSError:
-        print("Error: Creating directory of input")
-    #
-    sift = cv2.xfeatures2d.SIFT_create()
-    index_params = dict(algorithm=0, tree=5)
-    search_params = dict()
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    for f in get_all_data_file_name():
-        data = get_data(f)
-        detect_img_in_vid(img, data, sift, flann)
-
-
-def detect_img_in_vid(img, data, sift, flann):
-    kp1, desc_1 = sift.detectAndCompute(img, None)
-    name = data["name"]
-    fps = data["fps"]
-    for p in data["data"]:
-        frame = p["frame"]
-        raw_kps = p["keypoints"]
-        raw_desc = p["descriptors"]
-
-        kp2 = []
-        desc_2 = raw_desc
-        for r_kp in raw_kps:
-            kp = json_to_keypoint(r_kp)
-            kp2.append(kp)
-        matches = flann.knnMatch(desc_1, desc_2, k=2)
-        good_points = []
-
-        for m, n in matches:
-            if m.distance < 0.6 * n.distance:
-                good_points.append(m)
-        if len(kp1) > len(kp2):
-            n_keypoints = len(kp2)
-        else:
-            n_keypoints = len(kp1)
-        percentage_similarity = len(good_points) / n_keypoints * 100
-
-        if percentage_similarity > 20.:
-            print("tìm thấy ảnh đầu vào trong: " + name)
-            print("xuất hiện : " + str(round(frame / fps, 2)) + "s")
-
-
-def json_to_keypoint(point):
-    return cv2.KeyPoint(x=point[0][0], y=point[0][1], _size=point[1], _angle=point[2], _response=point[3],
-                        _octave=point[4], _class_id=point[5])
-
-
-def json_to_descriptor(point):
-    return numpy.asarray(point)
-
-
-def get_data(f_name):
-    return pickle.load(open(f_name, 'rb'))
-
-
-def get_all_data_file_name():
-    return glob.iglob("input/*.data")
-
-
-def get_all_video_file_name():
-    return glob.iglob("input/*.mp4")
-
-
-class NumpyArrayEncoder(JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, numpy.ndarray):
-            return obj.tolist()
-        return JSONEncoder.default(self, obj)
-
-
-def get_skip(fps):
-    return int(fps / 3)
-
-
-def extract_and_save_f(v_name, video):
-    f_obj = open('input/' + v_name + '.data', 'wb+')
-    fps = change_fps.get_fps(video)
-    skip = get_skip(fps)
-    # init algorithm
-    sift = cv2.xfeatures2d.SIFT_create()
-    current_frame = 0
-    skip_frame = 0
-    datas = []
-    # run
-    while True:
-        ret, frame = video.read()
-        current_frame += 1
-        if skip_frame > 0:
-            skip_frame -= 1
-            continue
-        else:
-            skip_frame = skip
-        print(current_frame)
-        if ret:
-            frame = normalize_img.normalize_video_image(frame)
-            kp, desc = sift.detectAndCompute(frame, None)
-            index = []
-            for point in kp:
-                temp = (point.pt, point.size, point.angle, point.response, point.octave, point.class_id)
-                index.append(temp)
-            data = {
-                "frame": current_frame,
-                "keypoints": index,
-                "descriptors": desc
-            }
-            datas.append(data)
-        else:
-            break
-
-    pickle.dump({
-        "name": v_name,
-        "fps": fps,
-        "data": datas
-    }, f_obj)
-
-
-start()
+if __name__ == '__main__':
+    init_output_folder()
+    app = wx.App()
+    frame = MyFrame()
+    app.MainLoop()
