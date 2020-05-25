@@ -1,1 +1,2 @@
-opencv-contrib-python-nonfree
+wxPython~=4.1.0
+moviepy~=1.0.3
