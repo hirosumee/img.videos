@@ -99,4 +99,4 @@ def init_output_video_features_folder(name):
         print("Error: Creating directory of " + path)
 
 
-# start()
+start()

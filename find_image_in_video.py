@@ -6,18 +6,18 @@ import cv2
 import normalize_img
 
 
-# def start():
-#     obj_img = cv2.imread('input/nu2.png')
-#     obj_img = normalize_img.normalize_object_image(obj_img)
-#     #
-#     sift = cv2.xfeatures2d.SIFT_create()
-#     index_params = dict(algorithm=0, tree=5)
-#     search_params = dict()
-#     flann = cv2.FlannBasedMatcher(index_params, search_params)
-#     kp1, desc_1 = sift.detectAndCompute(obj_img, None)
-#     for d_path in get_all_data_file_name():
-#         data = get_data(d_path)
-#         detect(flann, kp1, desc_1, data)
+def start():
+    obj_img = cv2.imread('pre_input/nu2.png')
+    obj_img = normalize_img.normalize_object_image(obj_img)
+    #
+    sift = cv2.xfeatures2d.SIFT_create()
+    index_params = dict(algorithm=0, tree=5)
+    search_params = dict()
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+    kp1, desc_1 = sift.detectAndCompute(obj_img, None)
+    for d_path in get_all_data_file_name():
+        data = get_data(d_path)
+        detect(flann, kp1, desc_1, data)
 
 
 def find(img, on_find, on_finished):
@@ -32,6 +32,7 @@ def find(img, on_find, on_finished):
         data = get_data(d_path)
         detect2(flann, kp1, desc_1, data, on_find)
     on_finished()
+
 
 def detect2(flann, or_kps, or_desc, data, on_find):
     name = data["name"]
@@ -59,28 +60,29 @@ def detect2(flann, or_kps, or_desc, data, on_find):
         print("xuất hiện : " + str(second) + "s" + " " + str(percent) + " %\n")
         on_find(name, second, percent)
 
-# def detect(flann, or_kps, or_desc, data):
-#     name = data["name"]
-#     fps = data["fps"]
-#     frame = data["frame"]
-#     raw_kps = data["keypoints"]
-#     descs = data["descriptors"]
-#     kps = to_kps(raw_kps)
-#
-#     matches = flann.knnMatch(or_desc, descs, k=2)
-#     good_points = []
-#
-#     for m, n in matches:
-#         if m.distance < 0.6 * n.distance:
-#             good_points.append(m)
-#     if len(or_kps) > len(kps):
-#         n_keypoints = len(kps)
-#     else:
-#         n_keypoints = len(or_kps)
-#     percentage_similarity = len(good_points) / n_keypoints * 100
-#     if percentage_similarity > 5.0:
-#         print("tìm thấy ảnh đầu vào trong: " + name)
-#         print("xuất hiện : " + str(round(frame / fps, 2)) + "s" + " " + str(percentage_similarity) + " %")
+
+def detect(flann, or_kps, or_desc, data):
+    name = data["name"]
+    fps = data["fps"]
+    frame = data["frame"]
+    raw_kps = data["keypoints"]
+    descs = data["descriptors"]
+    kps = to_kps(raw_kps)
+
+    matches = flann.knnMatch(or_desc, descs, k=2)
+    good_points = []
+
+    for m, n in matches:
+        if m.distance < 0.6 * n.distance:
+            good_points.append(m)
+    if len(or_kps) > len(kps):
+        n_keypoints = len(kps)
+    else:
+        n_keypoints = len(or_kps)
+    percentage_similarity = len(good_points) / n_keypoints * 100
+    if percentage_similarity > 5.0:
+        print("tìm thấy ảnh đầu vào trong: " + name)
+        print("xuất hiện : " + str(round(frame / fps, 2)) + "s" + " " + str(percentage_similarity) + " %")
 
 
 def to_kps(raw):
@@ -106,4 +108,5 @@ def get_data(f_name):
     f.close()
     return data
 
-# start()
+
+start()
